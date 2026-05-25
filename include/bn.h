@@ -80,4 +80,26 @@ void bn_gcd(bn_t *g, const bn_t *a, const bn_t *b);
 // Modular inversion using extended Euclidean algorithm
 void bn_inv_mod(bn_t *inv, const bn_t *a, const bn_t *mod);
 
+/* ------------------------------------------------------------------------
+ * Helpers for binary GCD
+ * ------------------------------------------------------------------------ */
+
+ // Test if a big number is zero
+ bool bn_is_zero(const bn_t *a);
+
+ // Test if a big number is even (lowest bit == 0)
+ bool bn_is_even(const bn_t *a);
+
+ // In-place right shift by one bit (divide by 2)
+ void bn_rshift1(bn_t *a);
+
+ // In-place left shift by one bit (multiply by 2)
+ void bn_rshift1(bn_t *a);
+
+/* ------------------------------------------------------------------------
+ * GCD (binary Euclidean algorithm)
+ * ------------------------------------------------------------------------ */
+// Compute g = gcd(a, b)
+void bn_gcd(bn_t *g, const bn_t *a, const bn_t *b);
+
 #endif /* BH_H */
