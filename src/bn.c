@@ -133,7 +133,7 @@ uint64_t bn_sub(bn_t *a, const bn_t *b, const bn_t *c) {
  *   - Finally multiply back by 2^d.
  */
 void bn_gcd(bn_t *g, const bn_t *a, const bn_t *b) {
-    bn_t u, v, t;
+    bn_t u, v;
     int shift = 0;
 
     bn_copy(&u, a);

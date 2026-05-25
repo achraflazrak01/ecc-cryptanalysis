@@ -7,6 +7,7 @@
  */
 #include <stdio.h>
 #include <assert.h>
+#include <stdlib.h>   // for srand(), rand()
 #include "bn.h"
 
 // Helper to print a bn_t (for debugging)
@@ -34,6 +35,112 @@ void test_sub(const bn_t *b, const bn_t *c, const bn_t *expected, uint64_t expec
     assert(borrow == expected_borrow);
     assert(bn_cmp(&result, expected) == 0);
 }
+
+// Simple 64-bit GCD for reference (naive Euclidean)
+static uint64_t gcd64(uint64_t x, uint64_t y) {
+    while (y != 0) {
+        uint64_t t = y;
+        y = x % y;
+        x = t;
+    }
+    return x;
+}
+
+// Test bn_gcd against known cases and randoms pairs
+void test_gcd(void) {
+    bn_t a, b, g, expected;
+    printf("Testing bn_gcd");
+
+    // Test 1: gcd(0, 0) = 0
+    bn_zero(&a);
+    bn_zero(&b);
+    bn_gcd(&g, &a, &b);
+    assert(bn_is_zero(&g));
+
+    // Test 2: gcd(0, 123) = 123
+    bn_zero(&a);
+    bn_from_u64(&b, 123);
+    bn_gcd(&g, &a, &b);
+    assert(bn_cmp(&g, &b) == 0);
+
+    // Test 3: gcd(123, 0) = 123
+    bn_gcd(&g, &b, &a);
+    assert(bn_cmp(&g, &b) == 0);
+
+    // Test 4: gcd(1, any) = 1
+    bn_from_u64(&a, 1);
+    bn_from_u64(&b, 0xFFFFFFFFFFFFFFFFULL);
+    bn_gcd(&g, &a, &b);
+    bn_from_u64(&expected, 1);
+    assert(bn_cmp(&g, &expected) == 0);
+
+    // Test 5: gcd(2^64, 2^64) = 2^64
+    bn_zero(&a); a.limbs[1] = 1;   // 2^64
+    bn_zero(&b); b.limbs[1] = 1;
+    bn_gcd(&g, &a, &b);
+    assert(bn_cmp(&g, &a) == 0);
+
+    // Test 6: gcd(2^256-1, 0) = 2^256-1
+    for (int i = 0; i < BN_NLIMBS; i++) a.limbs[i] = 0xFFFFFFFFFFFFFFFFULL;
+    bn_zero(&b);
+    bn_gcd(&g, &a, &b);
+    assert(bn_cmp(&g, &a) == 0);
+
+    // Test 7: gcd(2^256-1, 1) = 1
+    bn_from_u64(&b, 1);
+    bn_gcd(&g, &a, &b);
+    bn_from_u64(&expected, 1);
+    assert(bn_cmp(&g, &expected) == 0);
+
+    // Test 8: gcd(6, 10) = 2 (low numbers)
+    bn_from_u64(&a, 6);
+    bn_from_u64(&b, 10);
+    bn_gcd(&g, &a, &b);
+    bn_from_u64(&expected, 2);
+    assert(bn_cmp(&g, &expected) == 0);
+
+    // Test 9: Random pairs within 64 bits (compare with gcd64)
+    srand(123456); // fixed seed for reproducibility
+    for (int test = 0; test < 100; test++) {
+        uint64_t x = ((uint64_t)rand() << 32) | rand();
+        uint64_t y = ((uint64_t)rand() << 32) | rand();
+        if (x == 0 && y == 0) continue; // skip both zero
+        
+        bn_from_u64(&a, x);
+        bn_from_u64(&b, y);
+        bn_gcd(&g, &a, &b);
+
+        uint64_t expected_gcd = gcd64(x, y);
+        bn_from_u64(&expected, expected_gcd);
+        assert(bn_cmp(&g, &expected) == 0);
+    }
+
+    // Test 10: Random 256-bit pairs - self-consistency:
+    //   gcd(gcd(a,b), c) should equal gcd(a, gcd(b,c))
+    bn_t c, g1, g2;
+    for (int test = 0; test < 20; test++) {
+        // Fill a,b,c with random limbs (use rand() for each limb)
+        for (int i = 0; i < BN_NLIMBS; i++) {
+            a.limbs[i] = ((uint64_t)rand() << 32) | rand();
+            b.limbs[i] = ((uint64_t)rand() << 32) | rand();
+            c.limbs[i] = ((uint64_t)rand() << 32) | rand();
+        }
+        // Avoid all zeros to keep gcd meaningful
+        if (bn_is_zero(&a)) a.limbs[0] = 1;
+        if (bn_is_zero(&b)) b.limbs[0] = 1;
+        if (bn_is_zero(&c)) c.limbs[0] = 1;
+        
+        bn_gcd(&g1, &a, &b);
+        bn_gcd(&g1, &g1, &c);   // g1 = gcd(gcd(a,b), c)
+
+        bn_gcd(&g2, &b, &c);
+        bn_gcd(&g2, &a, &g2);   // g2 = gcd(a, gcd(b,c))
+
+        assert(bn_cmp(&g1, &g2) == 0);
+    }
+    printf("bn_gcd tests passed.\n");
+}
+
 
 int main(void)
 {
@@ -115,6 +222,8 @@ int main(void)
     bn_copy(&c, &b);
     bn_zero(&expected);
     test_sub(&b, &c, &expected, 0);
+
+    test_gcd();
 
     printf("All tests passed!\n");
     return 0;
