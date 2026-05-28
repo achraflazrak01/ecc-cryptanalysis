@@ -190,7 +190,6 @@ void bn_gcd(bn_t *g, const bn_t *a, const bn_t *b) {
  */
 bool bn_inv_mod(bn_t *inv, const bn_t *a, const bn_t *mod) {
     bn_t u, v, x1, x2, t, q, tmp;
-    int shift;
 
     // Copy arguments to work on
     bn_copy(&u, a);
@@ -206,7 +205,6 @@ bool bn_inv_mod(bn_t *inv, const bn_t *a, const bn_t *mod) {
     // Main loop: while u != 0
     while (!bn_is_zero(&u)) {
         // Remove factors of 2 from u
-        shift = 0;
         while (bn_is_even(&u)) {
             bn_rshift1(&u);
             // Update x1: if x1 is even, half it; else (x1 + mod)/2
@@ -217,7 +215,6 @@ bool bn_inv_mod(bn_t *inv, const bn_t *a, const bn_t *mod) {
                 bn_rshift1(&tmp);
                 bn_copy(&x1, &tmp);
             }
-            shift++;
         }
         
         // Remove factors of 2 from v
