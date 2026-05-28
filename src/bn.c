@@ -189,7 +189,7 @@ void bn_gcd(bn_t *g, const bn_t *a, const bn_t *b) {
  * Returns true on success (inverse exists), false otherwise.
  */
 bool bn_inv_mod(bn_t *inv, const bn_t *a, const bn_t *mod) {
-    bn_t u, v, x1, x2, t, q, tmp;
+    bn_t u, v, x1, x2, tmp;
 
     // Copy arguments to work on
     bn_copy(&u, a);

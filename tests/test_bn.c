@@ -141,6 +141,75 @@ void test_gcd(void) {
     printf("bn_gcd tests passed.\n");
 }
 
+// Test modular inverse: a * inv ≡ 1 (mod m)
+void test_inv_mod(void) {
+    bn_t a, mod, inv, one, expected;
+    printf("Testing bn_inv_mod...\n");
+
+    bn_from_u64(&one, 1);
+
+    // Test 1: inv(3) mod 7 = 5, because 3*5=15=1 mod7
+    bn_from_u64(&a, 3);
+    bn_from_u64(&mod, 7);
+    bool ok = bn_inv_mod(&inv, &a, &mod);
+    assert(ok == true);
+    bn_from_u64(&expected, 5);
+    assert(bn_cmp(&inv, &expected) == 0);
+
+    // Test 2: inv(1)
+    bn_from_u64(&a, 1);
+    bn_from_u64(&mod, 0xFFFFFFFFFFFFFFFFULL);
+    ok = bn_inv_mod(&inv, &a, &mod);
+    assert(ok == true);
+    assert(bn_cmp(&inv, &a) == 0);
+
+    // Test 3: non-invertiblz (gcd != 1) e.g. inv(2) mod 6
+    bn_from_u64(&a, 2);
+    bn_from_u64(&mod, 6);
+    ok = bn_inv_mod(&inv, &a, &mod);
+    assert(ok == false);
+
+    // Test 4: random pairs (using small 64-bit modulus for which we can precompute inverse via extended Euclid)
+    srand(12345);
+    for (int test = 0; test < 100; test++) {
+        uint64_t a_val = ((uint64_t)rand() << 32) | rand();
+        uint64_t m_val = ((uint64_t)rand() << 32) | rand();
+        if (m_val < 2) m_val = 2;
+        if (m_val % 2) m_val++; // ensure odd for binary algorithm
+        // Compute gcd64 and f gcd != 1 skip
+        if (gcd64(a_val, m_val) != 1) continue;
+
+        bn_from_u64(&a, a_val);
+        bn_from_u64(&mod, m_val);
+        ok = bn_inv_mod(&inv, &a, &mod);
+        assert(ok == true);
+
+        // Compute (a * inv) % m using 64-bit multiplication
+        __uint128_t product = (__uint128_t)a_val * inv.limbs[0];
+        uint64_t remainder = (uint64_t)(product % m_val);
+        assert(remainder == 1);
+    }
+
+    bn_t p256;
+    p256.limbs[0] = 0xFFFFFFFFFFFFFFFFULL;
+    p256.limbs[1] = 0x00000000FFFFFFFFULL;  // because of the 2^224 term
+    p256.limbs[2] = 0x0000000000000000ULL;
+    p256.limbs[3] = 0xFFFFFFFF00000001ULL;
+
+    bn_t two, p_plus_one, half;
+    bn_from_u64(&two, 2);
+    bn_copy(&p_plus_one, &p256);
+    bn_from_u64(&one, 1);
+    bn_add(&p_plus_one, &p_plus_one, &one);
+    bn_copy(&half, &p_plus_one);
+    bn_rshift1(&half);
+    ok = bn_inv_mod(&inv, &two, &p256);
+    assert(ok == true);
+    assert(bn_cmp(&inv, &half) == 0);
+
+    printf("bn_inv_mod tests passed.\n");
+
+}
 
 int main(void)
 {
