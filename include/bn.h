@@ -74,11 +74,18 @@ uint64_t bn_add(bn_t *a, const bn_t *b, const bn_t *c);
 // Subtraction: a = b - c. Returns borrow (0 or 1) -> 0 = success, 1 = underflow
 uint64_t bn_sub(bn_t *a, const bn_t *b, const bn_t *c);
 
-// Greatest common divisor (Euclid) - for big integers
+/* ------------------------------------------------------------------------
+ * GCD (binary Euclidean algorithm)
+ * ------------------------------------------------------------------------ */
+// Compute g = gcd(a, b)
 void bn_gcd(bn_t *g, const bn_t *a, const bn_t *b);
 
-// Modular inversion using extended Euclidean algorithm
-void bn_inv_mod(bn_t *inv, const bn_t *a, const bn_t *mod);
+/* ------------------------------------------------------------------------
+ * Modular inverse (binary extended GCD)
+ * ------------------------------------------------------------------------ */
+// Compute inv = a^{-1} mod mod (mod must be odd and > 1)
+// Returns true if inverse exists (gcd(a, mod) == 1), else false.
+bool bn_inv_mod(bn_t *inv, const bn_t *a, const bn_t *mod);
 
 /* ------------------------------------------------------------------------
  * Helpers for binary GCD
@@ -95,11 +102,5 @@ void bn_inv_mod(bn_t *inv, const bn_t *a, const bn_t *mod);
 
  // In-place left shift by one bit (multiply by 2)
  void bn_rshift1(bn_t *a);
-
-/* ------------------------------------------------------------------------
- * GCD (binary Euclidean algorithm)
- * ------------------------------------------------------------------------ */
-// Compute g = gcd(a, b)
-void bn_gcd(bn_t *g, const bn_t *a, const bn_t *b);
 
 #endif /* BH_H */

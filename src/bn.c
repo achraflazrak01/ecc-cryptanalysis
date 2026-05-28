@@ -180,3 +180,82 @@ void bn_gcd(bn_t *g, const bn_t *a, const bn_t *b) {
         bn_lshift1(g);
     }
 }
+
+/* ------------------------------------------------------------------------
+ * Binary extended GCD (modular inverse)
+ * ------------------------------------------------------------------------
+ * For odd modulus 'mod', compute inv such that (a * inv) % mod == 1.
+ * Uses the binary (Stein) algorithm with co-factors.
+ * Returns true on success (inverse exists), false otherwise.
+ */
+bool bn_inv_mod(bn_t *inv, const bn_t *a, const bn_t *mod) {
+    bn_t u, v, x1, x2, t, q, tmp;
+    int shift;
+
+    // Copy arguments to work on
+    bn_copy(&u, a);
+    bn_copy(&v, mod);
+    bn_from_u64(&x1, 1);
+    bn_zero(&x2);
+
+    // Reduce u modulo mod (ensure u < mod)
+    while (bn_cmp(&u, &v) >= 0) {
+        bn_sub(&u, &u, &v);
+    }
+
+    // Main loop: while u != 0
+    while (!bn_is_zero(&u)) {
+        // Remove factors of 2 from u
+        shift = 0;
+        while (bn_is_even(&u)) {
+            bn_rshift1(&u);
+            // Update x1: if x1 is even, half it; else (x1 + mod)/2
+            if (bn_is_even(&x1)) {
+                bn_rshift1(&x1);
+            } else {
+                bn_add(&tmp, &x1, mod);
+                bn_rshift1(&tmp);
+                bn_copy(&x1, &tmp);
+            }
+            shift++;
+        }
+        
+        // Remove factors of 2 from v
+        while (bn_is_even(&v)) {
+            bn_rshift1(&v);
+            if(bn_is_even(&x2)) {
+                bn_rshift1(&x2);
+            } else {
+                bn_add(&tmp, &x2, mod);
+                bn_rshift1(&tmp);
+                bn_copy(&x2, &tmp);
+            }
+        }
+
+        // Now both u and v are odd
+        if (bn_cmp(&u, &v) >= 0) {
+            bn_sub(&u, &u, &v);
+            bn_sub(&x1, &x1, &x2);
+        } else {
+            bn_sub(&v, &v, &u);
+            bn_sub(&x2, &x2, &x1);
+        }
+    }
+    
+    // At this point, v = gcd(a, mod). If v != 1, no inverse.
+    if(!(v.limbs[0] == 1 && bn_is_zero(&v) == false &&
+            (v.limbs[1] | v.limbs[2] | v.limbs[3]) == 0)) {
+            return false;  // gcd != 1
+    }
+    // Inverse is x2 mod mod. Ensure positive.
+    bn_copy(inv, &x2);
+    // If inv negative? Our algorithm keeps x2 in [0, mod-1] because we add mod when needed.
+    // But final x2 might be > mod, so reduce once.
+    while (bn_cmp(inv, mod) >= 0) {
+        bn_sub(inv, inv, mod);
+    }
+    while (inv->limbs[0] & 0x8000000000000000ULL) { // handle sign if we used signed
+        bn_add(inv, inv, mod);
+    }
+    return true;
+}
