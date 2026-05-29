@@ -45,11 +45,13 @@ int bn_cmp(const bn_t *a, const bn_t *b) {
     
 }
 
-/* ------------------------------------------------------------------------
- * Addition with carry
- * ------------------------------------------------------------------------
- * Computes a = b + c.
- * Returns carry out (0 or 1). The result a is stored in little-endian order.
+/**
+ * @brief Addition with carry propagation.
+ * @param a Output: b + c.
+ * @param b First addend.
+ * @param c Second addend.
+ * @return Carry out (0 or 1).
+ * @note Uses 128-bit intermediate for portable carry detection.
  */
 uint64_t bn_add(bn_t *a, const bn_t *b, const bn_t *c) {
     uint64_t carry = 0;
@@ -123,14 +125,10 @@ uint64_t bn_sub(bn_t *a, const bn_t *b, const bn_t *c) {
     // Note: we ignore overflow beyond 256 bits (no need for GCD)
  }
 
-/* ------------------------------------------------------------------------
- * Binary GCD (Stein's algorithm)
- * ------------------------------------------------------------------------
- * Computes g = gcd(a, b). Uses only subtraction and halving.
- * The algorithm:
- *   - Remove common factors of 2 (d)
- *   - Then repeatedly: if both even -> half; if one even -> half; else subtract smaller from larger.
- *   - Finally multiply back by 2^d.
+/**
+ * @brief Binary GCD (Stein's algorithm).
+ * @details Removes common factors of 2, then uses subtraction and halving.
+ *          Faster than Euclidean algorithm for large numbers.
  */
 void bn_gcd(bn_t *g, const bn_t *a, const bn_t *b) {
     bn_t u, v;
@@ -181,21 +179,23 @@ void bn_gcd(bn_t *g, const bn_t *a, const bn_t *b) {
     }
 }
 
-/* ------------------------------------------------------------------------
- * Binary extended GCD (modular inverse)
- * ------------------------------------------------------------------------
- * For odd modulus 'mod', compute inv such that (a * inv) % mod == 1.
- * Uses the binary (Stein) algorithm with co-factors.
- * Returns true on success (inverse exists), false otherwise.
+/**
+ * @brief Modular inverse using binary extended GCD.
+ * @details Implements algorithm 4.5.2 from "Handbook of Applied Cryptography".
+ *          Reduces temporary copies by reusing inv as x2 and limiting temporaries.
+ * @param inv Output: a^{-1} mod mod.
+ * @param a Input integer.
+ * @param mod Odd modulus.
+ * @return true if inverse exists.
  */
 bool bn_inv_mod(bn_t *inv, const bn_t *a, const bn_t *mod) {
-    bn_t u, v, x1, x2, tmp;
+    bn_t u, v, x1, tmp;
 
-    // Copy arguments to work on
+    // Use u = a %  mod, v = mod
     bn_copy(&u, a);
     bn_copy(&v, mod);
     bn_from_u64(&x1, 1);
-    bn_zero(&x2);
+    bn_zero(inv);
 
     // Reduce u modulo mod (ensure u < mod)
     while (bn_cmp(&u, &v) >= 0) {
@@ -220,22 +220,22 @@ bool bn_inv_mod(bn_t *inv, const bn_t *a, const bn_t *mod) {
         // Remove factors of 2 from v
         while (bn_is_even(&v)) {
             bn_rshift1(&v);
-            if(bn_is_even(&x2)) {
-                bn_rshift1(&x2);
+            if(bn_is_even(inv)) {
+                bn_rshift1(inv);
             } else {
-                bn_add(&tmp, &x2, mod);
+                bn_add(&tmp, inv, mod);
                 bn_rshift1(&tmp);
-                bn_copy(&x2, &tmp);
+                bn_copy(inv, &tmp);
             }
         }
 
         // Now both u and v are odd
         if (bn_cmp(&u, &v) >= 0) {
             bn_sub(&u, &u, &v);
-            bn_sub(&x1, &x1, &x2);
+            bn_sub(&x1, &x1, inv);
         } else {
             bn_sub(&v, &v, &u);
-            bn_sub(&x2, &x2, &x1);
+            bn_sub(inv, inv, &x1);
         }
     }
     
@@ -244,14 +244,13 @@ bool bn_inv_mod(bn_t *inv, const bn_t *a, const bn_t *mod) {
             (v.limbs[1] | v.limbs[2] | v.limbs[3]) == 0)) {
             return false;  // gcd != 1
     }
-    // Inverse is x2 mod mod. Ensure positive.
-    bn_copy(inv, &x2);
+
     // If inv negative? Our algorithm keeps x2 in [0, mod-1] because we add mod when needed.
-    // But final x2 might be > mod, so reduce once.
     while (bn_cmp(inv, mod) >= 0) {
         bn_sub(inv, inv, mod);
     }
-    while (inv->limbs[0] & 0x8000000000000000ULL) { // handle sign if we used signed
+    // If negative (unlikely with our algorithm), add mod once
+    while (inv->limbs[0] & 0x8000000000000000ULL) {
         bn_add(inv, inv, mod);
     }
     return true;
